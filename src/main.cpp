@@ -1,5 +1,7 @@
 #include "session.h"
 #include "decoder.h"
+#include "console.h"
+#include "enrich.h"
 
 #include <cstdio>
 #include <csignal>
@@ -37,6 +39,7 @@ static void Usage() {
     puts("etwkit - ETW telemetry to JSONL\n"
          "\n"
          "  etwkit trace [-o out.jsonl] [-p process,network,dns,file,registry,powershell] [-d seconds]\n"
+         "  etwkit watch [-p providers] [-d seconds]\n"
          "  etwkit providers\n"
          "\n"
          "  -o   output file (default: stdout)\n"
@@ -53,6 +56,39 @@ int wmain(int argc, wchar_t** argv) {
     if (cmd == L"providers") {
         for (auto& p : TraceSession::BuiltInProviders())
             wprintf(L"%s  %s\n", p.name.c_str(), GuidToString(p.guid).c_str());
+        return 0;
+    }
+    if (cmd == L"watch") {
+        std::wstring provList = L"process,network,dns";
+        int duration = 0;
+        for (int i = 2; i + 1 < argc; i += 2) {
+            std::wstring a = argv[i];
+            if (a == L"-p") provList = argv[i + 1];
+            else if (a == L"-d") duration = _wtoi(argv[i + 1]);
+        }
+        std::vector<ProviderSpec> selected;
+        std::wstring needle = L"," + provList + L",";
+        for (auto& p : TraceSession::BuiltInProviders())
+            if (needle.find(L"," + p.name + L",") != std::wstring::npos) selected.push_back(p);
+        if (selected.empty()) { puts("no matching providers"); return 1; }
+        if (!IsElevated()) puts("warning: not elevated - kernel providers may fail");
+
+        ConsoleRenderInit();
+        ProcCache cache;
+        SetConsoleCtrlHandler(OnCtrl, TRUE);
+
+        TraceSession ts;
+        bool ok = ts.Start(L"etwkit-watch", selected, [&](PEVENT_RECORD rec) {
+            ConsoleRender(rec, cache);
+        });
+        if (!ok) { puts("failed to start trace session (need admin?)"); return 1; }
+        fprintf(stderr, "watching %zu providers (Ctrl+C to stop)\n", selected.size());
+        auto t0 = GetTickCount64();
+        while (!g_stop) {
+            if (duration && (GetTickCount64() - t0) / 1000 >= (ULONGLONG)duration) break;
+            Sleep(200);
+        }
+        ts.Stop();
         return 0;
     }
     if (cmd != L"trace") { Usage(); return 1; }

@@ -8,6 +8,8 @@ add_executable(etwkit
     src/main.cpp
     src/session.cpp
     src/decoder.cpp
+    src/console.cpp
+    src/enrich.cpp
 )
 
 target_compile_options(etwkit PRIVATE /W3 /O2)
