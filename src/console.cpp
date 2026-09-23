@@ -35,7 +35,7 @@ static std::wstring FirstProps(PEVENT_RECORD rec) {
         return L"";
 
     std::wstring out;
-    USHORT n = info->TopLevelPropertyCount < 5 ? info->TopLevelPropertyCount : 5;
+    USHORT n = info->TopLevelPropertyCount < 5 ? static_cast<USHORT>(info->TopLevelPropertyCount) : 5;
     for (USHORT i = 0; i < n; i++) {
         auto* prop = &info->EventPropertyInfoArray[i];
         std::wstring name = prop->NameOffset
@@ -43,7 +43,7 @@ static std::wstring FirstProps(PEVENT_RECORD rec) {
         PROPERTY_DATA_DESCRIPTOR dd{};
         dd.PropertyName = reinterpret_cast<ULONGLONG>(
             reinterpret_cast<BYTE*>(info) + prop->NameOffset);
-        dd.ArrayIndex = ALL_DATA;
+        dd.ArrayIndex = ULONG_MAX;
         ULONG sz = 0;
         if (TdhGetPropertySize(rec, 0, nullptr, 1, &dd, &sz) != ERROR_SUCCESS || sz > 512)
             continue;
@@ -98,12 +98,12 @@ void ConsoleRender(PEVENT_RECORD rec, ProcCache& cache) {
 
     wchar_t line[1024];
     if (g_color) {
-        swprintf(line, 1024, L"%s%S\x1b[0m \x1b[36m%-28S\x1b[0m %-5u %-22S %-24S %S\n",
+        swprintf(line, 1024, L"%S%s\x1b[0m \x1b[36m%-28s\x1b[0m %-5u %-22s %-24s %s\n",
             LevelColor(rec->EventHeader.EventDescriptor.Level),
             ts.c_str(), prov.c_str(), rec->EventHeader.ProcessId,
             task.c_str(), img.c_str(), props.c_str());
     } else {
-        swprintf(line, 1024, L"%S %-28S %-5u %-22S %-24S %S\n",
+        swprintf(line, 1024, L"%s %-28s %-5u %-22s %-24s %s\n",
             ts.c_str(), prov.c_str(), rec->EventHeader.ProcessId,
             task.c_str(), img.c_str(), props.c_str());
     }

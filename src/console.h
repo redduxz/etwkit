@@ -1,5 +1,6 @@
 #pragma once
 
+#include <windows.h>
 #include <evntcons.h>
 #include <string>
 #include "enrich.h"

@@ -128,22 +128,6 @@ static std::wstring PropertyToString(PEVENT_RECORD rec,
         return out;
     }
     default: {
-        ULONG bufLen = 0;
-        USHORT ptrSize = rec->EventHeader.PointerSize
-            ? rec->EventHeader.PointerSize : static_cast<USHORT>(sizeof(void*));
-        TDHSTATUS st = TdhFormatProperty(rec, nullptr, ptrSize, inType,
-                                         TDH_OUTTYPE_STRING,
-                                         static_cast<USHORT>(consumed), consumed,
-                                         data.data(), &bufLen, nullptr);
-        if (st == ERROR_INSUFFICIENT_BUFFER) {
-            std::vector<wchar_t> buf(bufLen / sizeof(wchar_t) + 1);
-            if (TdhFormatProperty(rec, nullptr, ptrSize, inType,
-                                  TDH_OUTTYPE_STRING,
-                                  static_cast<USHORT>(consumed), consumed,
-                                  data.data(), &bufLen, buf.data()) == ERROR_SUCCESS) {
-                return L"\"" + JsonEscape(std::wstring(buf.data())) + L"\"";
-            }
-        }
         std::wstring hex;
         const wchar_t* d = L"0123456789abcdef";
         for (ULONG i = 0; i < consumed && i < 64; i++) {
@@ -197,7 +181,8 @@ std::wstring DecodeEventToJson(PEVENT_RECORD rec) {
         if (i) json += L",";
         json += L"\"" + JsonEscape(name) + L"\":";
 
-        if ((prop->Flags & PropertyFlagMask) == PropertyArray) {
+        bool isArray = (prop->count > 1) || (prop->Flags & PropertyParamCount) != 0;
+        if (isArray) {
             json += L"[";
             for (ULONG e = 0; e < 32; e++) {
                 PROPERTY_DATA_DESCRIPTOR dd{};
@@ -211,7 +196,7 @@ std::wstring DecodeEventToJson(PEVENT_RECORD rec) {
             }
             json += L"]";
         } else {
-            json += PropertyToString(rec, info, i, ALL_DATA);
+            json += PropertyToString(rec, info, i, ULONG_MAX);
         }
     }
     json += L"}}";
